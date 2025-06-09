@@ -10,6 +10,7 @@ import { Trophy, Globe, Users, Crown, Shield, Award, Flag } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "../config/constants";
 import { useClickStats } from "../hooks/useClickStats";
+import SyncStatus from "../components/SyncStatus";
 
 // دالة للتأكد من سلامة البيانات
 const ensureSafeData = (data: any): CountryStatsData => {
@@ -55,7 +56,7 @@ const Index = () => {
   const [imagePaths, setImagePaths] = useState<{ image1: any; image2: any }>({ image1: null, image2: null });
   const [hasAd, setHasAd] = useState(false);
   
-  // استخدام الهوك المحسن للنقر السريع
+  // استخدام الهوك المحسن مع المزامنة اللحظية
   const {
     clickData,
     isLoading,
@@ -65,7 +66,10 @@ const Index = () => {
     image2Percentage,
     totalClicks,
     topCountry,
-    pendingClicksCount
+    pendingClicksCount,
+    lastSyncTime,
+    isOnline,
+    forceSync
   } = useClickStats();
 
   useEffect(() => {
@@ -90,9 +94,9 @@ const Index = () => {
       .catch(err => console.error("Error loading images:", err));
   }, []);
 
-  // دالة النقر المحسنة - فورية بدون تأخير
+  // دالة النقر المحسنة مع المزامنة
   const handleOptimizedImageClick = useCallback((imageNum: number) => {
-    console.log("🚀 نقرة سريعة على الصورة:", imageNum);
+    console.log("🚀 نقرة هجينة مع مزامنة فورية:", imageNum);
     handleImageClick(imageNum, userCountry);
   }, [handleImageClick, userCountry]);
 
@@ -123,6 +127,14 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      {/* مؤشر حالة المزامنة */}
+      <SyncStatus 
+        lastSyncTime={lastSyncTime}
+        isOnline={isOnline}
+        pendingClicksCount={pendingClicksCount}
+        onForceSync={forceSync}
+      />
+
       <div className="container mx-auto px-4 pt-4">
         <TopBannerAd onVisibilityChange={(visible) => setHasAd(visible)} />
         <AdBanner onVisibilityChange={(visible) => setHasAd(visible)} />
@@ -172,7 +184,14 @@ const Index = () => {
             </h2>
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+              <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Globe className="text-blue-400" size={24} />
+                  <span className="text-slate-300 font-medium">إجمالي الأصوات</span>
+                </div>
+                <div className="text-3xl font-bold text-white">{totalClicks.toLocaleString()}</div>
+              </div>
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Flag className="text-green-400" size={24} />
