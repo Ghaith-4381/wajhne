@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { registerClick } from '../services/api';
 
 interface PendingClick {
   imageId: number;
@@ -38,7 +37,11 @@ export const useOptimisticClicks = (initialData: OptimisticData) => {
     try {
       for (const click of clicksToProcess) {
         // إرسال غير متزامن بدون انتظار
-        registerClick(click.imageId, click.country).catch(console.error);
+        fetch('/api/click', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageId: click.imageId, country: click.country })
+        }).catch(console.error);
       }
       console.log(`✅ تم إرسال ${clicksToProcess.length} نقرة للخادم`);
     } catch (error) {
@@ -84,7 +87,7 @@ export const useOptimisticClicks = (initialData: OptimisticData) => {
     
     batchTimeoutRef.current = setTimeout(() => {
       processPendingClicks();
-    }, 500); // تقليل الوقت لإرسال أسرع
+    }, 2000); // إرسال كل 2 ثانية
   }, [processPendingClicks]);
 
   useEffect(() => {

@@ -56,7 +56,7 @@ export const useClickStats = () => {
     queryKey: ['stats'],
     queryFn: fetchStats,
     retry: 1,
-    staleTime: 60000, // البيانات صالحة لدقيقة واحدة
+    staleTime: 300000, // البيانات صالحة لـ 5 دقائق
     enabled: !useLocalData,
     // تعطيل كل أنواع التحديث التلقائي
     refetchInterval: false,
