@@ -1,0 +1,25 @@
+# Ignore environment variables
+.env
+
+# Ignore lock files
+bun.lockb
+package-lock.json
+
+# Ignore build output (if any)
+dist/
+node_modules/
+.vscode/
+.idea/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore development scripts
+start-project.sh
+start-project.bat
+README.md
+
+# Ignore uploads in dev (optional)
+uploads/
+lovable-uploads/

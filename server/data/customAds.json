@@ -1,0 +1,18 @@
+{
+    "enabled": true,
+    "ads": [
+      {
+        "id": "1",
+        "imageUrl": "/ads/ad1.jpg",
+        "link": "https://example.com",
+        "country": "IQ"
+      },
+      {
+        "id": "2",
+        "imageUrl": "/ads/ad2.jpg",
+        "link": "https://another.com",
+        "country": "SY"
+      }
+    ]
+  }
+  
