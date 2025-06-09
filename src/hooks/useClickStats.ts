@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { fetchStats, CountryStatsData } from "../services/api";
 import { useOptimisticClicks } from "./useOptimisticClicks";
@@ -52,16 +51,15 @@ const ensureDataSafety = (data: any): CountryStatsData => {
 export const useClickStats = () => {
   const [useLocalData, setUseLocalData] = useState(false);
 
-  // جلب البيانات من الخادم للعرض الأولي فقط
+  // جلب البيانات من الخادم للعرض الأولي فقط (مرة واحدة)
   const { data: rawClickData, isLoading, error } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
-    refetchInterval: 30000,
     retry: 1,
-    staleTime: 25000,
-    initialData: createSafeInitialData,
+    staleTime: 60000, // البيانات صالحة لدقيقة واحدة
     enabled: !useLocalData,
-    // تعطيل التحديث التلقائي لمنع التداخل مع البيانات المؤقتة
+    // تعطيل كل أنواع التحديث التلقائي
+    refetchInterval: false,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     refetchOnReconnect: false
@@ -69,14 +67,14 @@ export const useClickStats = () => {
 
   const safeClickData = ensureDataSafety(rawClickData);
   
-  // استخدام البيانات المؤقتة الفورية
+  // استخدام البيانات المؤقتة الفورية (هي البيانات الوحيدة المعروضة)
   const {
     optimisticData,
     handleOptimisticClick,
     pendingClicksCount
   } = useOptimisticClicks(useLocalData ? fallbackData : safeClickData);
 
-  // البيانات المعروضة = البيانات المؤقتة فقط (لا تتغير من الخادم)
+  // البيانات المعروضة = البيانات المؤقتة فقط (لا تتأثر بالخادم أبداً)
   const clickData = optimisticData;
 
   if (error && !useLocalData) {
@@ -117,11 +115,12 @@ export const useClickStats = () => {
 
   const topCountry = getTopCountry();
 
-  // دالة النقر النهائية - زيادة فورية ونهائية
+  // دالة النقر الفورية - زيادة مباشرة بدون أي انتظار
   const handleImageClick = useCallback((imageNum: number, country: string) => {
     console.log(`🎯 نقرة فورية على الصورة ${imageNum} من ${country}`);
+    console.log(`⏱️ الوقت: ${new Date().toLocaleTimeString()}`);
     
-    // النقر الفوري والنهائي
+    // النقر الفوري والنهائي (بدون انتظار)
     handleOptimisticClick(imageNum, country);
   }, [handleOptimisticClick]);
 
