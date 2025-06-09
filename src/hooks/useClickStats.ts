@@ -1,5 +1,4 @@
-
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { fetchStats, CountryStatsData } from "../services/api";
 import { useOptimisticClicks } from "./useOptimisticClicks";
 import { useState, useCallback, useEffect } from "react";
@@ -51,23 +50,21 @@ const ensureDataSafety = (data: any): CountryStatsData => {
 
 export const useClickStats = () => {
   const [useLocalData, setUseLocalData] = useState(false);
-  const queryClient = useQueryClient();
 
-  // جلب البيانات الحقيقية من قاعدة البيانات
-  const { data: rawClickData, isLoading, error } = useQuery({
+  // جلب البيانات الأولية فقط
+  const { data: rawClickData, isLoading } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
-    retry: 2,
-    staleTime: 30000, // 30 ثانية
-    refetchInterval: 10000, // تحديث كل 10 ثواني لمزامنة البيانات
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    retry: 1,
+    staleTime: Infinity, // لا نريد إعادة جلب تلقائية
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
     enabled: !useLocalData
   });
 
   const safeClickData = ensureDataSafety(rawClickData);
-  
-  console.log('📊 البيانات من قاعدة البيانات:', safeClickData);
   
   // النظام المحسن للنقرات الفورية
   const {
@@ -78,18 +75,11 @@ export const useClickStats = () => {
 
   // التبديل للبيانات المحلية في حالة الخطأ
   useEffect(() => {
-    if (error && !isLoading && !useLocalData) {
-      console.log("❌ خطأ في قاعدة البيانات، تفعيل البيانات الاحتياطية");
+    if (!rawClickData && !isLoading && !useLocalData) {
+      console.log("تفعيل البيانات الاحتياطية");
       setUseLocalData(true);
     }
-  }, [error, isLoading, useLocalData]);
-
-  // تحديث البيانات المحلية عند وصول بيانات جديدة من قاعدة البيانات
-  useEffect(() => {
-    if (rawClickData && !useLocalData) {
-      console.log('🔄 تحديث البيانات المحلية مع بيانات قاعدة البيانات');
-    }
-  }, [rawClickData, useLocalData]);
+  }, [rawClickData, isLoading, useLocalData]);
 
   // حساب النسب
   const totalClicks = (optimisticData.image1?.total || 0) + (optimisticData.image2?.total || 0);
@@ -128,14 +118,9 @@ export const useClickStats = () => {
 
   // دالة النقر السريعة والفورية
   const handleImageClick = useCallback((imageNum: number, country: string) => {
-    console.log(`⚡ نقرة سريعة على الصورة ${imageNum} من ${country}`);
+    console.log(`⚡ نقرة سريعة على الصورة ${imageNum}`);
     handleOptimisticClick(imageNum, country);
-    
-    // تحديث البيانات من قاعدة البيانات بعد 3 ثواني من النقر
-    setTimeout(() => {
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
-    }, 3000);
-  }, [handleOptimisticClick, queryClient]);
+  }, [handleOptimisticClick]);
 
   return {
     clickData: optimisticData,
