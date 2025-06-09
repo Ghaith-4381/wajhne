@@ -16,16 +16,15 @@ export interface CountryStatsData {
   };
 }
 
-// تسجيل النقرة مع تحسينات السرعة والموثوقية
+// تسجيل النقرة مع ضمان الحفظ في قاعدة البيانات
 export const registerClick = async (
   imageId: number, 
-  country: string, 
-  securityData?: { isTrusted: boolean; timestamp: number }
+  country: string
 ): Promise<number> => {
   try {
-    console.log(`💾 حفظ النقرة: الصورة ${imageId}, الدولة: ${country}`);
+    console.log(`💾 بدء حفظ النقرة: الصورة ${imageId}, الدولة: ${country}`);
     
-    // تسجيل النقرة في جدول click_events أولاً
+    // 1. تسجيل النقرة في جدول click_events
     const { error: clickEventError } = await supabase
       .from('click_events')
       .insert({
@@ -37,8 +36,9 @@ export const registerClick = async (
       console.error('خطأ في تسجيل حدث النقر:', clickEventError);
       throw clickEventError;
     }
+    console.log(`✅ تم تسجيل حدث النقر بنجاح`);
 
-    // تحديث إحصائيات الصورة باستخدام دالة increment
+    // 2. تحديث إحصائيات الصورة
     const { error: incrementError } = await supabase.rpc('increment_image_clicks', { 
       img_id: imageId 
     });
@@ -47,16 +47,17 @@ export const registerClick = async (
       console.error('خطأ في تحديث إحصائيات الصورة:', incrementError);
       throw incrementError;
     }
+    console.log(`✅ تم تحديث إحصائيات الصورة ${imageId}`);
 
-    // تحديث أو إدراج إحصائيات الدولة
+    // 3. تحديث أو إدراج إحصائيات الدولة
     const { data: existingCountryStats, error: fetchError } = await supabase
       .from('country_stats')
       .select('*')
       .eq('image_id', imageId)
       .eq('country', country)
-      .single();
+      .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows found
+    if (fetchError) {
       console.error('خطأ في جلب إحصائيات الدولة:', fetchError);
       throw fetchError;
     }
@@ -72,6 +73,7 @@ export const registerClick = async (
         console.error('خطأ في تحديث إحصائيات الدولة:', updateError);
         throw updateError;
       }
+      console.log(`✅ تم تحديث إحصائيات الدولة ${country}: ${existingCountryStats.clicks + 1}`);
     } else {
       // إدراج إحصائيات جديدة للدولة
       const { error: insertError } = await supabase
@@ -86,9 +88,10 @@ export const registerClick = async (
         console.error('خطأ في إدراج إحصائيات الدولة:', insertError);
         throw insertError;
       }
+      console.log(`✅ تم إنشاء إحصائيات جديدة للدولة ${country}: 1`);
     }
 
-    // جلب العدد الجديد للنقرات
+    // 4. جلب العدد الجديد للنقرات للتأكيد
     const { data: imageStats, error: statsError } = await supabase
       .from('image_stats')
       .select('total_clicks')
@@ -101,7 +104,7 @@ export const registerClick = async (
     }
 
     const newTotal = imageStats?.total_clicks || 0;
-    console.log(`✅ تم حفظ النقرة بنجاح! المجموع الجديد: ${newTotal}`);
+    console.log(`🎉 تم حفظ النقرة بنجاح! المجموع الجديد للصورة ${imageId}: ${newTotal}`);
     return newTotal;
     
   } catch (error) {

@@ -13,12 +13,11 @@ interface PendingClick {
 }
 
 export const useOptimisticClicks = (initialData: OptimisticData) => {
-  // البيانات المحلية الفورية
   const [optimisticData, setOptimisticData] = useState<OptimisticData>(initialData);
   const [pendingClicks, setPendingClicks] = useState<PendingClick[]>([]);
   const sendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // دالة إرسال النقرات للخادم
+  // دالة إرسال النقرات للخادم مع الانتظار للحفظ
   const sendPendingClicks = useCallback(async () => {
     if (pendingClicks.length === 0) return;
 
@@ -28,11 +27,12 @@ export const useOptimisticClicks = (initialData: OptimisticData) => {
     // مسح الانتظار فوراً
     setPendingClicks([]);
 
-    // إرسال كل نقرة لقاعدة البيانات
+    // إرسال كل نقرة لقاعدة البيانات مع انتظار النتيجة
     for (const click of clicksToSend) {
       try {
-        const newTotal = await registerClick(click.imageId, click.country);
-        console.log(`✅ تم حفظ النقرة: الصورة ${click.imageId}, المجموع الجديد: ${newTotal}`);
+        console.log(`💾 حفظ النقرة: الصورة ${click.imageId}, الدولة: ${click.country}`);
+        await registerClick(click.imageId, click.country);
+        console.log(`✅ تم حفظ النقرة بنجاح في قاعدة البيانات`);
       } catch (error) {
         console.error(`❌ خطأ في حفظ النقرة:`, error);
         // في حالة الخطأ، أعيد النقرة للقائمة للمحاولة مرة أخرى
@@ -41,8 +41,8 @@ export const useOptimisticClicks = (initialData: OptimisticData) => {
     }
   }, [pendingClicks]);
 
-  // النقر الفوري والمتزامن
-  const handleOptimisticClick = useCallback((imageId: number, country: string) => {
+  // النقر الفوري مع إرسال فوري لقاعدة البيانات
+  const handleOptimisticClick = useCallback(async (imageId: number, country: string) => {
     console.log(`🚀 نقرة فورية على الصورة ${imageId}`);
     
     // 1. تحديث الواجهة فوراً (أهم شيء!)
@@ -64,19 +64,29 @@ export const useOptimisticClicks = (initialData: OptimisticData) => {
       return newData;
     });
 
-    // 2. إضافة للقائمة للإرسال لقاعدة البيانات
-    setPendingClicks(prev => [...prev, {
-      imageId,
-      country,
-      timestamp: Date.now()
-    }]);
-
-    // 3. جدولة الإرسال لقاعدة البيانات (كل ثانيتين)
-    if (sendTimeoutRef.current) {
-      clearTimeout(sendTimeoutRef.current);
+    // 2. حفظ النقرة فوراً في قاعدة البيانات (بدون انتظار)
+    try {
+      registerClick(imageId, country).then(() => {
+        console.log(`💾 تم حفظ النقرة في قاعدة البيانات للصورة ${imageId}`);
+      }).catch((error) => {
+        console.error(`❌ خطأ في حفظ النقرة:`, error);
+        // إضافة للقائمة للمحاولة مرة أخرى
+        setPendingClicks(prev => [...prev, {
+          imageId,
+          country,
+          timestamp: Date.now()
+        }]);
+      });
+    } catch (error) {
+      console.error(`❌ خطأ في حفظ النقرة:`, error);
+      // إضافة للقائمة للمحاولة مرة أخرى
+      setPendingClicks(prev => [...prev, {
+        imageId,
+        country,
+        timestamp: Date.now()
+      }]);
     }
-    sendTimeoutRef.current = setTimeout(sendPendingClicks, 2000);
-  }, [sendPendingClicks]);
+  }, []);
 
   return {
     optimisticData,
