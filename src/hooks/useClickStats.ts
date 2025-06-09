@@ -1,6 +1,7 @@
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchStats, registerClick, CountryStatsData } from "../services/api";
+import { useQuery } from "@tanstack/react-query";
+import { fetchStats, CountryStatsData } from "../services/api";
+import { useOptimisticClicks } from "./useOptimisticClicks";
 import { useState, useCallback } from "react";
 
 const createSafeInitialData = () => ({
@@ -50,70 +51,38 @@ const ensureDataSafety = (data: any): CountryStatsData => {
 
 export const useClickStats = () => {
   const [useLocalData, setUseLocalData] = useState(false);
-  const queryClient = useQueryClient();
 
+  // جلب البيانات من الخادم للعرض الأولي فقط
   const { data: rawClickData, isLoading, error } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
-    refetchInterval: 2000,
+    refetchInterval: 30000,
     retry: 1,
-    staleTime: 1000,
-    initialData: createSafeInitialData
+    staleTime: 25000,
+    initialData: createSafeInitialData,
+    enabled: !useLocalData,
+    // تعطيل التحديث التلقائي لمنع التداخل مع البيانات المؤقتة
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false
   });
 
   const safeClickData = ensureDataSafety(rawClickData);
-  const clickData = useLocalData ? fallbackData : safeClickData;
+  
+  // استخدام البيانات المؤقتة الفورية
+  const {
+    optimisticData,
+    handleOptimisticClick,
+    pendingClicksCount
+  } = useOptimisticClicks(useLocalData ? fallbackData : safeClickData);
+
+  // البيانات المعروضة = البيانات المؤقتة فقط (لا تتغير من الخادم)
+  const clickData = optimisticData;
 
   if (error && !useLocalData) {
-    console.log("Using fallback data due to API error:", error);
+    console.log("تفعيل البيانات الاحتياطية بسبب خطأ في API:", error);
     setUseLocalData(true);
   }
-
-  const clickMutation = useMutation({
-    mutationFn: ({ imageId, country, securityData }: { 
-      imageId: number, 
-      country: string,
-      securityData?: { isTrusted: boolean; timestamp: number }
-    }) => registerClick(imageId, country, securityData),
-    
-    onMutate: async ({ imageId, country }) => {
-      await queryClient.cancelQueries({ queryKey: ['stats'] });
-      const previousData = queryClient.getQueryData(['stats']);
-      const safePreviousData = ensureDataSafety(previousData);
-      
-      queryClient.setQueryData(['stats'], (old: any) => {
-        const safeOld = ensureDataSafety(old);
-        const imageKey = imageId === 1 ? 'image1' : 'image2';
-        
-        return {
-          ...safeOld,
-          [imageKey]: {
-            ...safeOld[imageKey],
-            total: safeOld[imageKey].total + 1,
-            countries: {
-              ...safeOld[imageKey].countries,
-              [country]: (safeOld[imageKey].countries[country] || 0) + 1
-            }
-          }
-        };
-      });
-      
-      return { previousData: safePreviousData };
-    },
-    
-    onError: (err, variables, context) => {
-      if (context?.previousData) {
-        queryClient.setQueryData(['stats'], context.previousData);
-      }
-      setUseLocalData(true);
-    },
-    
-    onSettled: () => {
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['stats'] });
-      }, 500);
-    }
-  });
 
   const totalClicks = (clickData.image1?.total || 0) + (clickData.image2?.total || 0);
   const image1Percentage = totalClicks > 0 ? ((clickData.image1?.total || 0) / totalClicks) * 100 : 50;
@@ -148,13 +117,13 @@ export const useClickStats = () => {
 
   const topCountry = getTopCountry();
 
-  const handleImageClick = useCallback((imageNum: number, country: string, securityData?: { isTrusted: boolean; timestamp: number }) => {
-    clickMutation.mutate({ 
-      imageId: imageNum, 
-      country,
-      securityData
-    });
-  }, [clickMutation]);
+  // دالة النقر النهائية - زيادة فورية ونهائية
+  const handleImageClick = useCallback((imageNum: number, country: string) => {
+    console.log(`🎯 نقرة فورية على الصورة ${imageNum} من ${country}`);
+    
+    // النقر الفوري والنهائي
+    handleOptimisticClick(imageNum, country);
+  }, [handleOptimisticClick]);
 
   return {
     clickData,
@@ -165,6 +134,7 @@ export const useClickStats = () => {
     image2Percentage,
     totalClicks,
     topCountry,
-    isUpdating: clickMutation.isPending
+    isUpdating: false, // دائماً false لأن التحديث فوري
+    pendingClicksCount
   };
 };
