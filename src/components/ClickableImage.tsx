@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useAntiClickBot } from "../hooks/useAntiClickBot";
 
@@ -6,7 +5,7 @@ interface ClickableImageProps {
   defaultSrc: string;
   pressedSrc?: string;
   alt: string;
-  onClick: (clickData?: { isTrusted: boolean; timestamp: number }) => void;
+  onClick: () => void;
   className?: string;
   soundSrc?: string;
   errorFallback?: boolean;
@@ -24,13 +23,12 @@ const ClickableImage = ({
   const [isPressed, setIsPressed] = useState(false);
   const [soundError, setSoundError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const lastClickTime = useRef(0);
   const { validateClick } = useAntiClickBot();
 
   useEffect(() => {
     if (soundSrc) {
       const audioElement = new Audio(soundSrc);
-      audioElement.preload = "auto"; // تحميل مسبق للصوت
+      audioElement.preload = "auto";
       audioElement.volume = 0.7;
       audioElement.addEventListener("error", () => {
         console.warn(`Sound file not found: ${soundSrc}`);
@@ -38,13 +36,6 @@ const ClickableImage = ({
       });
       audioRef.current = audioElement;
     }
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
-    };
   }, [soundSrc]);
 
   const playSound = () => {
@@ -57,25 +48,10 @@ const ClickableImage = ({
     }
   };
 
-  const handlePress = () => {
-    setIsPressed(true);
-    playSound();
-  };
-
-  const handleRelease = () => {
-    setIsPressed(false);
-  };
-
+  // نقرة فورية بدون أي تأخير
   const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    // منع النقرات السريعة جداً (أقل من 50ms)
-    const now = Date.now();
-    if (now - lastClickTime.current < 50) {
-      return;
-    }
-    lastClickTime.current = now;
     
     // التحقق من صحة النقرة
     if (!validateClick(e)) {
@@ -86,36 +62,29 @@ const ClickableImage = ({
     // تشغيل الصوت فوراً
     playSound();
     
-    // إرسال النقرة فوراً
-    onClick({
-      isTrusted: e.isTrusted,
-      timestamp: now
-    });
+    // تنفيذ النقرة فوراً (أهم شيء!)
+    onClick();
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
-    handlePress();
+    setIsPressed(true);
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
-    handleRelease();
+    setIsPressed(false);
     handleClick(e);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     e.preventDefault();
-    handlePress();
+    setIsPressed(true);
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     e.preventDefault();
-    handleRelease();
+    setIsPressed(false);
     handleClick(e);
-  };
-
-  const getImageUrl = () => {
-    return isPressed && pressedSrc ? pressedSrc : defaultSrc;
   };
 
   return (
@@ -123,7 +92,7 @@ const ClickableImage = ({
       className={`cursor-pointer relative clickable-image select-none ${className}`}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      onMouseLeave={handleRelease}
+      onMouseLeave={() => setIsPressed(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       style={{
@@ -132,12 +101,12 @@ const ClickableImage = ({
         WebkitTouchCallout: "none",
         WebkitUserSelect: "none",
         userSelect: "none",
-        transform: isPressed ? "scale(0.98)" : "scale(1)",
-        transition: "transform 0.1s ease"
+        transform: isPressed ? "scale(0.95)" : "scale(1)",
+        transition: "transform 0.05s ease"
       }}
     >
       <img
-        src={getImageUrl()}
+        src={isPressed && pressedSrc ? pressedSrc : defaultSrc}
         alt={alt}
         className="w-full h-full object-cover rounded-lg pointer-events-none"
         draggable={false}
