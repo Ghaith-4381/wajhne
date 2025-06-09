@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { registerClick } from '../services/api';
 
 interface OptimisticData {
   image1: { total: number; countries: Record<string, number> };
@@ -12,37 +13,35 @@ interface PendingClick {
 }
 
 export const useOptimisticClicks = (initialData: OptimisticData) => {
-  // البيانات المحلية الفورية - لا تتراجع أبداً
+  // البيانات المحلية الفورية
   const [optimisticData, setOptimisticData] = useState<OptimisticData>(initialData);
   const [pendingClicks, setPendingClicks] = useState<PendingClick[]>([]);
   const sendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // دالة إرسال النقرات للخادم (في الخلفية)
+  // دالة إرسال النقرات للخادم
   const sendPendingClicks = useCallback(async () => {
     if (pendingClicks.length === 0) return;
 
     const clicksToSend = [...pendingClicks];
-    setPendingClicks([]); // مسح الانتظار فوراً
+    console.log(`📤 إرسال ${clicksToSend.length} نقرة لقاعدة البيانات`);
+    
+    // مسح الانتظار فوراً
+    setPendingClicks([]);
 
-    // إرسال غير متزامن - لا ننتظر النتيجة
-    clicksToSend.forEach(async (click) => {
+    // إرسال كل نقرة لقاعدة البيانات
+    for (const click of clicksToSend) {
       try {
-        await fetch('/api/click', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            imageId: click.imageId, 
-            country: click.country 
-          })
-        });
+        const newTotal = await registerClick(click.imageId, click.country);
+        console.log(`✅ تم حفظ النقرة: الصورة ${click.imageId}, المجموع الجديد: ${newTotal}`);
       } catch (error) {
-        console.error('خطأ في إرسال النقرة:', error);
-        // لا نقوم بأي تراجع - الواجهة تبقى كما هي
+        console.error(`❌ خطأ في حفظ النقرة:`, error);
+        // في حالة الخطأ، أعيد النقرة للقائمة للمحاولة مرة أخرى
+        setPendingClicks(prev => [...prev, click]);
       }
-    });
+    }
   }, [pendingClicks]);
 
-  // النقر الفوري والنهائي
+  // النقر الفوري والمتزامن
   const handleOptimisticClick = useCallback((imageId: number, country: string) => {
     console.log(`🚀 نقرة فورية على الصورة ${imageId}`);
     
@@ -61,22 +60,22 @@ export const useOptimisticClicks = (initialData: OptimisticData) => {
         }
       };
       
-      console.log(`✅ السكور الجديد: ${newData[imageKey].total}`);
+      console.log(`✅ السكور الجديد للصورة ${imageId}: ${newData[imageKey].total}`);
       return newData;
     });
 
-    // 2. إضافة للقائمة للإرسال
+    // 2. إضافة للقائمة للإرسال لقاعدة البيانات
     setPendingClicks(prev => [...prev, {
       imageId,
       country,
       timestamp: Date.now()
     }]);
 
-    // 3. جدولة الإرسال (كل ثانية واحدة)
+    // 3. جدولة الإرسال لقاعدة البيانات (كل ثانيتين)
     if (sendTimeoutRef.current) {
       clearTimeout(sendTimeoutRef.current);
     }
-    sendTimeoutRef.current = setTimeout(sendPendingClicks, 1000);
+    sendTimeoutRef.current = setTimeout(sendPendingClicks, 2000);
   }, [sendPendingClicks]);
 
   return {

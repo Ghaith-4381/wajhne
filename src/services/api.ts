@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ClickData {
@@ -17,71 +16,115 @@ export interface CountryStatsData {
   };
 }
 
-// تسجيل النقرة مع تحسينات السرعة
+// تسجيل النقرة مع تحسينات السرعة والموثوقية
 export const registerClick = async (
   imageId: number, 
   country: string, 
   securityData?: { isTrusted: boolean; timestamp: number }
 ): Promise<number> => {
   try {
-    // تسجيل النقرة في جدول click_events
-    await supabase
+    console.log(`💾 حفظ النقرة: الصورة ${imageId}, الدولة: ${country}`);
+    
+    // تسجيل النقرة في جدول click_events أولاً
+    const { error: clickEventError } = await supabase
       .from('click_events')
       .insert({
         image_id: imageId,
         country: country
       });
 
-    // تحديث إحصائيات الصورة
-    await supabase.rpc('increment_image_clicks', { img_id: imageId });
+    if (clickEventError) {
+      console.error('خطأ في تسجيل حدث النقر:', clickEventError);
+      throw clickEventError;
+    }
+
+    // تحديث إحصائيات الصورة باستخدام دالة increment
+    const { error: incrementError } = await supabase.rpc('increment_image_clicks', { 
+      img_id: imageId 
+    });
+
+    if (incrementError) {
+      console.error('خطأ في تحديث إحصائيات الصورة:', incrementError);
+      throw incrementError;
+    }
 
     // تحديث أو إدراج إحصائيات الدولة
-    const { data: existingCountryStats } = await supabase
+    const { data: existingCountryStats, error: fetchError } = await supabase
       .from('country_stats')
       .select('*')
       .eq('image_id', imageId)
       .eq('country', country)
       .single();
 
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows found
+      console.error('خطأ في جلب إحصائيات الدولة:', fetchError);
+      throw fetchError;
+    }
+
     if (existingCountryStats) {
-      await supabase
+      // تحديث الإحصائيات الموجودة
+      const { error: updateError } = await supabase
         .from('country_stats')
         .update({ clicks: existingCountryStats.clicks + 1 })
         .eq('id', existingCountryStats.id);
+
+      if (updateError) {
+        console.error('خطأ في تحديث إحصائيات الدولة:', updateError);
+        throw updateError;
+      }
     } else {
-      await supabase
+      // إدراج إحصائيات جديدة للدولة
+      const { error: insertError } = await supabase
         .from('country_stats')
         .insert({
           image_id: imageId,
           country: country,
           clicks: 1
         });
+
+      if (insertError) {
+        console.error('خطأ في إدراج إحصائيات الدولة:', insertError);
+        throw insertError;
+      }
     }
 
     // جلب العدد الجديد للنقرات
-    const { data: imageStats } = await supabase
+    const { data: imageStats, error: statsError } = await supabase
       .from('image_stats')
       .select('total_clicks')
       .eq('image_id', imageId)
       .single();
 
-    return imageStats?.total_clicks || 0;
+    if (statsError) {
+      console.error('خطأ في جلب إحصائيات الصورة:', statsError);
+      throw statsError;
+    }
+
+    const newTotal = imageStats?.total_clicks || 0;
+    console.log(`✅ تم حفظ النقرة بنجاح! المجموع الجديد: ${newTotal}`);
+    return newTotal;
+    
   } catch (error) {
-    console.error('Error registering click:', error);
-    return 0;
+    console.error('❌ خطأ في تسجيل النقرة:', error);
+    throw error;
   }
 };
 
-// جلب الإحصائيات مع cache
+// جلب الإحصائيات مع معالجة أفضل للأخطاء
 export const fetchStats = async (): Promise<CountryStatsData> => {
   try {
+    console.log('📥 جلب الإحصائيات من قاعدة البيانات...');
+    
     // جلب إحصائيات الصور
     const { data: imageStats, error: imageError } = await supabase
       .from('image_stats')
       .select('*')
       .in('image_id', [1, 2]);
 
-    if (imageError) throw imageError;
+    if (imageError) {
+      console.error('خطأ في جلب إحصائيات الصور:', imageError);
+      throw imageError;
+    }
 
     // جلب إحصائيات الدول
     const { data: countryStats, error: countryError } = await supabase
@@ -89,7 +132,10 @@ export const fetchStats = async (): Promise<CountryStatsData> => {
       .select('*')
       .in('image_id', [1, 2]);
 
-    if (countryError) throw countryError;
+    if (countryError) {
+      console.error('خطأ في جلب إحصائيات الدول:', countryError);
+      throw countryError;
+    }
 
     // تنظيم البيانات
     const image1Stats = imageStats?.find(stat => stat.image_id === 1);
@@ -109,7 +155,7 @@ export const fetchStats = async (): Promise<CountryStatsData> => {
         return acc;
       }, {} as Record<string, number>) || {};
 
-    return {
+    const result = {
       image1: {
         total: Number(image1Stats?.total_clicks || 0),
         countries: image1Countries
@@ -119,8 +165,12 @@ export const fetchStats = async (): Promise<CountryStatsData> => {
         countries: image2Countries
       }
     };
+
+    console.log('✅ تم جلب الإحصائيات بنجاح:', result);
+    return result;
+    
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    console.error('❌ خطأ في جلب الإحصائيات:', error);
     throw error;
   }
 };
