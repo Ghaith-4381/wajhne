@@ -208,7 +208,7 @@ const Index = () => {
             <Award className="text-amber-400" size={48} />
           </div>
           <p className="text-xl md:text-2xl text-amber-200 font-semibold mb-4">
-            صوت لقائدك المفضل في المعركة الرئاسية
+            صوت لقائدك المفضل في المعركة الرئاسية44444444444444444444
           </p>
           <div className="flex justify-center items-center gap-2 text-amber-300">
             <Flag size={20} />
