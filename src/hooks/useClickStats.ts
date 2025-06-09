@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
-import { fetchStats, CountryStatsData } from "../services/api";
-import { useOptimisticClicks } from "./useOptimisticClicks";
-import { useState, useCallback, useEffect } from "react";
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchStats, registerClick, CountryStatsData } from "../services/api";
+import { useState, useCallback } from "react";
 
 const createSafeInitialData = () => ({
   image1: { total: 0, countries: {} },
@@ -50,48 +50,80 @@ const ensureDataSafety = (data: any): CountryStatsData => {
 
 export const useClickStats = () => {
   const [useLocalData, setUseLocalData] = useState(false);
+  const queryClient = useQueryClient();
 
-  // جلب البيانات الأولية فقط
-  const { data: rawClickData, isLoading } = useQuery({
+  const { data: rawClickData, isLoading, error } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
+    refetchInterval: 2000,
     retry: 1,
-    staleTime: Infinity, // لا نريد إعادة جلب تلقائية
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    enabled: !useLocalData
+    staleTime: 1000,
+    initialData: createSafeInitialData
   });
 
   const safeClickData = ensureDataSafety(rawClickData);
-  
-  // النظام المحسن للنقرات الفورية
-  const {
-    optimisticData,
-    handleOptimisticClick,
-    pendingClicksCount
-  } = useOptimisticClicks(useLocalData ? fallbackData : safeClickData);
+  const clickData = useLocalData ? fallbackData : safeClickData;
 
-  // التبديل للبيانات المحلية في حالة الخطأ
-  useEffect(() => {
-    if (!rawClickData && !isLoading && !useLocalData) {
-      console.log("تفعيل البيانات الاحتياطية");
+  if (error && !useLocalData) {
+    console.log("Using fallback data due to API error:", error);
+    setUseLocalData(true);
+  }
+
+  const clickMutation = useMutation({
+    mutationFn: ({ imageId, country, securityData }: { 
+      imageId: number, 
+      country: string,
+      securityData?: { isTrusted: boolean; timestamp: number }
+    }) => registerClick(imageId, country, securityData),
+    
+    onMutate: async ({ imageId, country }) => {
+      await queryClient.cancelQueries({ queryKey: ['stats'] });
+      const previousData = queryClient.getQueryData(['stats']);
+      const safePreviousData = ensureDataSafety(previousData);
+      
+      queryClient.setQueryData(['stats'], (old: any) => {
+        const safeOld = ensureDataSafety(old);
+        const imageKey = imageId === 1 ? 'image1' : 'image2';
+        
+        return {
+          ...safeOld,
+          [imageKey]: {
+            ...safeOld[imageKey],
+            total: safeOld[imageKey].total + 1,
+            countries: {
+              ...safeOld[imageKey].countries,
+              [country]: (safeOld[imageKey].countries[country] || 0) + 1
+            }
+          }
+        };
+      });
+      
+      return { previousData: safePreviousData };
+    },
+    
+    onError: (err, variables, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(['stats'], context.previousData);
+      }
       setUseLocalData(true);
+    },
+    
+    onSettled: () => {
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['stats'] });
+      }, 500);
     }
-  }, [rawClickData, isLoading, useLocalData]);
+  });
 
-  // حساب النسب
-  const totalClicks = (optimisticData.image1?.total || 0) + (optimisticData.image2?.total || 0);
-  const image1Percentage = totalClicks > 0 ? ((optimisticData.image1?.total || 0) / totalClicks) * 100 : 50;
-  const image2Percentage = totalClicks > 0 ? ((optimisticData.image2?.total || 0) / totalClicks) * 100 : 50;
+  const totalClicks = (clickData.image1?.total || 0) + (clickData.image2?.total || 0);
+  const image1Percentage = totalClicks > 0 ? ((clickData.image1?.total || 0) / totalClicks) * 100 : 50;
+  const image2Percentage = totalClicks > 0 ? ((clickData.image2?.total || 0) / totalClicks) * 100 : 50;
   
-  // البحث عن الدولة المتصدرة
   const getTopCountry = useCallback(() => {
     const countryCounts = new Map<string, number>();
     
-    const image1Countries = optimisticData.image1?.countries || {};
-    const image2Countries = optimisticData.image2?.countries || {};
+    const image1Countries = clickData.image1?.countries || {};
+    const image2Countries = clickData.image2?.countries || {};
     
     Object.entries(image1Countries).forEach(([country, count]) => {
       countryCounts.set(country, (countryCounts.get(country) || 0) + (count as number));
@@ -112,18 +144,20 @@ export const useClickStats = () => {
     });
     
     return { country: topCountry, clicks: maxClicks };
-  }, [optimisticData]);
+  }, [clickData]);
 
   const topCountry = getTopCountry();
 
-  // دالة النقر السريعة والفورية
-  const handleImageClick = useCallback((imageNum: number, country: string) => {
-    console.log(`⚡ نقرة سريعة على الصورة ${imageNum}`);
-    handleOptimisticClick(imageNum, country);
-  }, [handleOptimisticClick]);
+  const handleImageClick = useCallback((imageNum: number, country: string, securityData?: { isTrusted: boolean; timestamp: number }) => {
+    clickMutation.mutate({ 
+      imageId: imageNum, 
+      country,
+      securityData
+    });
+  }, [clickMutation]);
 
   return {
-    clickData: optimisticData,
+    clickData,
     isLoading,
     useLocalData,
     handleImageClick,
@@ -131,7 +165,6 @@ export const useClickStats = () => {
     image2Percentage,
     totalClicks,
     topCountry,
-    isUpdating: false,
-    pendingClicksCount
+    isUpdating: clickMutation.isPending
   };
 };
