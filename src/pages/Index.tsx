@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ClickableImage from "../components/ClickableImage";
 import CountryStats from "../components/CountryStats";
 import AdBanner from "../components/AdBanner";
@@ -9,11 +9,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trophy, Globe, Users, Crown, Shield, Award, Flag } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "../config/constants";
-
-type ClickMutationData = {
-  imageId: number;
-  country: string;
-};
+import { useClickStats } from "../hooks/useClickStats";
+import SyncStatus from "../components/SyncStatus";
 
 // دالة للتأكد من سلامة البيانات
 const ensureSafeData = (data: any): CountryStatsData => {
@@ -56,73 +53,24 @@ const fallbackData: CountryStatsData = {
 
 const Index = () => {
   const [userCountry, setUserCountry] = useState("Unknown");
-  const [useLocalData, setUseLocalData] = useState(false);
   const [imagePaths, setImagePaths] = useState<{ image1: any; image2: any }>({ image1: null, image2: null });
   const [hasAd, setHasAd] = useState(false);
-  const queryClient = useQueryClient();
-
-  const { data: rawClickData, isLoading } = useQuery({
-    queryKey: ['stats'],
-    queryFn: fetchStats,
-    refetchInterval: 5000,
-    retry: 1,
-    initialData: initialClickData,
-    meta: {
-      onError: (error: any) => {
-        console.log("Using fallback data due to API error:", error);
-        setUseLocalData(true);
-      }
-    }
-  });
-
-  // تطبيق الحماية على البيانات المستلمة
-  const safeClickData = ensureSafeData(rawClickData);
-  const clickData = useLocalData ? fallbackData : safeClickData;
-
-  const clickMutation = useMutation<void, unknown, ClickMutationData & { isTrusted?: boolean; timestamp?: number }>({
-    mutationFn: ({ imageId, country, isTrusted = true, timestamp = Date.now() }) => {
-      const result = registerClick(imageId, country, { isTrusted, timestamp });
-      return result instanceof Promise ? result.then(() => {}) : Promise.resolve();
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
-    },
-    onError: (error: any, variables) => {
-      // التعامل مع أخطاء الحماية ضد النقرات التلقائية
-      if (error?.response?.status === 429) {
-        const errorData = error.response.data;
-        if (errorData.type === 'rate_limit_exceeded') {
-          toast({
-            title: "تم تجاوز الحد المسموح",
-            description: errorData.message,
-            variant: "destructive",
-          });
-        } else if (errorData.type === 'untrusted_click') {
-          toast({
-            title: "نقرة غير صالحة",
-            description: "يرجى النقر بشكل طبيعي",
-            variant: "destructive",
-          });
-        }
-        return;
-      }
-
-      setUseLocalData(true);
-      if (useLocalData) {
-        let updatedData = { ...fallbackData };
-        const imageKey = variables.imageId === 1 ? 'image1' : 'image2';
-        updatedData[imageKey] = {
-          ...updatedData[imageKey],
-          total: updatedData[imageKey].total + 1,
-          countries: {
-            ...updatedData[imageKey].countries,
-            [variables.country || "Unknown"]: (updatedData[imageKey].countries[variables.country || "Unknown"] || 0) + 1
-          }
-        };
-        queryClient.setQueryData(['stats'], updatedData);
-      }
-    }
-  });
+  
+  // استخدام الهوك المحسن مع المزامنة اللحظية
+  const {
+    clickData,
+    isLoading,
+    useLocalData,
+    handleImageClick,
+    image1Percentage,
+    image2Percentage,
+    totalClicks,
+    topCountry,
+    pendingClicksCount,
+    lastSyncTime,
+    isOnline,
+    forceSync
+  } = useClickStats();
 
   useEffect(() => {
     // حدد الدولة تلقائياً من خلال IP
@@ -141,39 +89,27 @@ const Index = () => {
       });
   
     // تحميل الصور من Supabase
-    queryClient.invalidateQueries({ queryKey: ['stats'] });
-  
     fetchImages()
       .then(res => setImagePaths(res))
       .catch(err => console.error("Error loading images:", err));
-  }, [queryClient]);
+  }, []);
 
-  const handleImageClick = (imageNum: number, clickData?: { isTrusted: boolean; timestamp: number }) => {
-    console.log("Image clicked:", imageNum);
-    clickMutation.mutate({ 
-      imageId: imageNum, 
-      country: userCountry,
-      isTrusted: clickData?.isTrusted,
-      timestamp: clickData?.timestamp
-    });
-  };
+  // دالة النقر المحسنة مع المزامنة
+  const handleOptimizedImageClick = useCallback((imageNum: number) => {
+    console.log("🚀 نقرة هجينة مع مزامنة فورية:", imageNum);
+    handleImageClick(imageNum, userCountry);
+  }, [handleImageClick, userCountry]);
 
-  // حسابات آمنة للإحصائيات
-  const data = clickData;
-  const totalClicks = (data.image1?.total || 0) + (data.image2?.total || 0);
-  const image1Percentage = totalClicks > 0 ? ((data.image1?.total || 0) / totalClicks) * 100 : 50;
-  const image2Percentage = totalClicks > 0 ? ((data.image2?.total || 0) / totalClicks) * 100 : 50;
-  
   // حساب الدولة الرائدة بطريقة آمنة
   const leadingCountry = (() => {
     const allEntries = [
-      ...Object.entries(data.image1?.countries || {}),
-      ...Object.entries(data.image2?.countries || {})
+      ...Object.entries(clickData.image1?.countries || {}),
+      ...Object.entries(clickData.image2?.countries || {})
     ];
     
     const countryTotals = allEntries.reduce((acc, [country, count]) => {
-      const image1Count = data.image1?.countries?.[country] || 0;
-      const image2Count = data.image2?.countries?.[country] || 0;
+      const image1Count = clickData.image1?.countries?.[country] || 0;
+      const image2Count = clickData.image2?.countries?.[country] || 0;
       const total = image1Count + image2Count;
       return total > acc.total ? { country, total } : acc;
     }, { country: "", total: 0 });
@@ -191,6 +127,14 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      {/* مؤشر حالة المزامنة */}
+      <SyncStatus 
+        lastSyncTime={lastSyncTime}
+        isOnline={isOnline}
+        pendingClicksCount={pendingClicksCount}
+        onForceSync={forceSync}
+      />
+
       <div className="container mx-auto px-4 pt-4">
         <TopBannerAd onVisibilityChange={(visible) => setHasAd(visible)} />
         <AdBanner onVisibilityChange={(visible) => setHasAd(visible)} />
@@ -221,12 +165,16 @@ const Index = () => {
               <span className="font-medium">وضع العرض التوضيحي</span>
             </div>
           )}
+          {pendingClicksCount > 0 && (
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-900/30 border border-green-400/50 rounded-lg text-green-200">
+              <span className="text-sm">⏳ {pendingClicksCount} نقرة في الانتظار</span>
+            </div>
+          )}
         </div>
       </header>
      
       <main className={`container mx-auto px-4 py-12 transition-all duration-500 ${hasAd ? 'mb-36' : 'mb-8'}`}>
         {/* Presidential Stats Dashboard */}
-    
         <div className="mb-12 bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl shadow-2xl border border-amber-600/30 overflow-hidden">
           <div className="bg-gradient-to-r from-amber-900/50 to-amber-800/50 px-6 py-4 border-b border-amber-600/30">
             <h2 className="text-2xl font-bold text-amber-100 text-center flex items-center justify-center gap-3">
@@ -269,7 +217,6 @@ const Index = () => {
             <div className={`bg-gradient-to-br from-slate-800 to-slate-700 rounded-2xl shadow-2xl border-2 overflow-hidden transition-all duration-500 ${
               winnerStatus === "left" ? "border-amber-400 shadow-amber-400/30" : "border-slate-600"
             }`}>
-              {/* Presidential Crown for Winner */}
               {winnerStatus === "left" && (
                 <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 z-10">
                   <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-black px-6 py-3 rounded-full font-bold shadow-2xl flex items-center gap-2">
@@ -280,12 +227,11 @@ const Index = () => {
                 </div>
               )}
               
-              {/* Header */}
               <div className="bg-gradient-to-r from-amber-900/40 to-amber-800/40 p-4 border-b border-amber-600/30">
                 <div className="text-center">
                   <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
                   <div className="text-4xl md:text-5xl font-bold text-white mb-2">
-                    {isLoading && !useLocalData ? "..." : (data.image1?.total || 0).toLocaleString()}
+                    {isLoading && !useLocalData ? "..." : (clickData.image1?.total || 0).toLocaleString()}
                   </div>
                   <div className="text-xl font-bold text-amber-300">
                     {image1Percentage.toFixed(1)}%
@@ -293,7 +239,6 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Presidential Portrait */}
               {imagePaths.image1?.default && (
                 <div className="p-6">
                   <div className="relative group">
@@ -302,7 +247,7 @@ const Index = () => {
                       defaultSrc={`${API_BASE_URL}${imagePaths.image1.default}`}
                       pressedSrc={`${API_BASE_URL}${imagePaths.image1.pressed}`}
                       alt="القائد الأول"
-                      onClick={(clickData) => handleImageClick(1, clickData)}
+                      onClick={() => handleOptimizedImageClick(1)}
                       className="w-full h-[500px] md:h-[600px] object-cover rounded-xl border-2 border-amber-600/50 shadow-2xl cursor-pointer transition-all duration-300 hover:border-amber-400 hover:shadow-amber-400/20"
                       soundSrc={imagePaths.image1?.sound ? `${API_BASE_URL}${imagePaths.image1.sound}` : undefined}
                       errorFallback={true}
@@ -317,7 +262,6 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Presidential Progress Bar */}
               <div className="p-6 pt-0">
                 <div className="w-full bg-slate-600 rounded-full h-4 overflow-hidden border border-slate-500">
                   <div 
@@ -349,7 +293,6 @@ const Index = () => {
             <div className={`bg-gradient-to-br from-slate-800 to-slate-700 rounded-2xl shadow-2xl border-2 overflow-hidden transition-all duration-500 ${
               winnerStatus === "right" ? "border-amber-400 shadow-amber-400/30" : "border-slate-600"
             }`}>
-              {/* Presidential Crown for Winner */}
               {winnerStatus === "right" && (
                 <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 z-10">
                   <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-black px-6 py-3 rounded-full font-bold shadow-2xl flex items-center gap-2">
@@ -360,12 +303,11 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Header */}
               <div className="bg-gradient-to-r from-amber-900/40 to-amber-800/40 p-4 border-b border-amber-600/30">
                 <div className="text-center">
                   <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
                   <div className="text-4xl md:text-5xl font-bold text-white mb-2">
-                    {isLoading && !useLocalData ? "..." : (data.image2?.total || 0).toLocaleString()}
+                    {isLoading && !useLocalData ? "..." : (clickData.image2?.total || 0).toLocaleString()}
                   </div>
                   <div className="text-xl font-bold text-amber-300">
                     {image2Percentage.toFixed(1)}%
@@ -373,7 +315,6 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Presidential Portrait */}
               {imagePaths.image2?.default && (
                 <div className="p-6">
                   <div className="relative group">
@@ -382,7 +323,7 @@ const Index = () => {
                       defaultSrc={`${API_BASE_URL}${imagePaths.image2.default}`}
                       pressedSrc={`${API_BASE_URL}${imagePaths.image2.pressed}`}
                       alt="القائد الثاني"
-                      onClick={(clickData) => handleImageClick(2, clickData)}
+                      onClick={() => handleOptimizedImageClick(2)}
                       className="w-full h-[500px] md:h-[600px] object-cover rounded-xl border-2 border-amber-600/50 shadow-2xl cursor-pointer transition-all duration-300 hover:border-amber-400 hover:shadow-amber-400/20"
                       soundSrc={imagePaths.image2?.sound ? `${API_BASE_URL}${imagePaths.image2.sound}` : undefined}
                       errorFallback={true}
@@ -397,7 +338,6 @@ const Index = () => {
                 </div>
               )}
 
-              {/* Presidential Progress Bar */}
               <div className="p-6 pt-0">
                 <div className="w-full bg-slate-600 rounded-full h-4 overflow-hidden border border-slate-500">
                   <div 
@@ -415,7 +355,7 @@ const Index = () => {
 
       {/* Country Stats */}
       <div className="container mx-auto px-4 pb-8">
-        <CountryStats data={data} userCountry={userCountry} />
+        <CountryStats data={clickData} userCountry={userCountry} />
       </div>
 
       {/* Presidential Footer */}

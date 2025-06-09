@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchStats, CountryStatsData } from "../services/api";
 import { useOptimisticClicks } from "./useOptimisticClicks";
+import { useRealTimeSync } from "./useRealTimeSync";
 import { useState, useCallback } from "react";
 
 const createSafeInitialData = () => ({
@@ -51,14 +52,13 @@ const ensureDataSafety = (data: any): CountryStatsData => {
 export const useClickStats = () => {
   const [useLocalData, setUseLocalData] = useState(false);
 
-  // جلب البيانات من الخادم للعرض الأولي فقط (مرة واحدة)
+  // جلب البيانات الأولية من السيرفر
   const { data: rawClickData, isLoading, error } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
     retry: 1,
-    staleTime: 300000, // البيانات صالحة لـ 5 دقائق
+    staleTime: 60000, // تقليل الوقت للحصول على بيانات أحدث
     enabled: !useLocalData,
-    // تعطيل كل أنواع التحديث التلقائي
     refetchInterval: false,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
@@ -67,15 +67,26 @@ export const useClickStats = () => {
 
   const safeClickData = ensureDataSafety(rawClickData);
   
-  // استخدام البيانات المؤقتة الفورية (هي البيانات الوحيدة المعروضة)
+  // استخدام البيانات المحلية الفورية
   const {
     optimisticData,
     handleOptimisticClick,
     pendingClicksCount
   } = useOptimisticClicks(useLocalData ? fallbackData : safeClickData);
 
-  // البيانات المعروضة = البيانات المؤقتة فقط (لا تتأثر بالخادم أبداً)
-  const clickData = optimisticData;
+  // مزامنة مع السيرفر كل ثانيتين
+  const {
+    syncedData,
+    lastSyncTime,
+    isOnline,
+    forceSync
+  } = useRealTimeSync(optimisticData, {
+    interval: 2000, // مزامنة كل ثانيتين
+    enabled: !useLocalData
+  });
+
+  // البيانات المعروضة = البيانات المتزامنة (مزيج من المحلية والعالمية)
+  const clickData = syncedData;
 
   if (error && !useLocalData) {
     console.log("تفعيل البيانات الاحتياطية بسبب خطأ في API:", error);
@@ -115,14 +126,19 @@ export const useClickStats = () => {
 
   const topCountry = getTopCountry();
 
-  // دالة النقر الفورية - زيادة مباشرة بدون أي انتظار
+  // دالة النقر الهجينة: فورية + مزامنة عالمية
   const handleImageClick = useCallback((imageNum: number, country: string) => {
-    console.log(`🎯 نقرة فورية على الصورة ${imageNum} من ${country}`);
+    console.log(`🎯 نقرة هجينة فورية على الصورة ${imageNum} من ${country}`);
     console.log(`⏱️ الوقت: ${new Date().toLocaleTimeString()}`);
     
-    // النقر الفوري والنهائي (بدون انتظار)
+    // النقر الفوري (optimistic)
     handleOptimisticClick(imageNum, country);
-  }, [handleOptimisticClick]);
+    
+    // مزامنة فورية إضافية بعد النقر (اختيارية)
+    setTimeout(() => {
+      forceSync();
+    }, 100);
+  }, [handleOptimisticClick, forceSync]);
 
   return {
     clickData,
@@ -133,7 +149,11 @@ export const useClickStats = () => {
     image2Percentage,
     totalClicks,
     topCountry,
-    isUpdating: false, // دائماً false لأن التحديث فوري
-    pendingClicksCount
+    isUpdating: false,
+    pendingClicksCount,
+    // معلومات المزامنة
+    lastSyncTime,
+    isOnline,
+    forceSync
   };
 };
