@@ -236,7 +236,6 @@ const Index = () => {
      
       <main className={`container mx-auto px-4 py-12 transition-all duration-500 ${hasAd ? 'mb-36' : 'mb-8'}`}>
         {/* Presidential Stats Dashboard */}
-    
         <div className="mb-12 bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl shadow-2xl border border-amber-600/30 overflow-hidden">
           <div className="bg-gradient-to-r from-amber-900/50 to-amber-800/50 px-6 py-4 border-b border-amber-600/30">
             <h2 className="text-2xl font-bold text-amber-100 text-center flex items-center justify-center gap-3">
@@ -246,20 +245,14 @@ const Index = () => {
             </h2>
           </div>
 
-
-          
-
-
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-
-              
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-center">
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <User className="text-blue-400" size={24} />
-                  <span className="text-slate-300 font-medium"> مشاركتك</span>
+                  <Flag className="text-green-400" size={24} />
+                  <span className="text-slate-300 font-medium">دولتك</span>
                 </div>
-                <div className="text-3xl font-bold text-white">{(userScore.image1 + userScore.image2).toLocaleString()}</div>
+                <div className="text-2xl font-bold text-amber-300">{userCountry}</div>
               </div>
 
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
@@ -270,14 +263,14 @@ const Index = () => {
                 <div className="text-3xl font-bold text-white">{totalClicks.toLocaleString()}</div>
               </div>
 
-
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <Flag className="text-green-400" size={24} />
-                  <span className="text-slate-300 font-medium">دولتك</span>
+                  <User className="text-blue-400" size={24} />
+                  <span className="text-slate-300 font-medium">مشاركتك</span>
                 </div>
-                <div className="text-2xl font-bold text-amber-300">{userCountry}</div>
+                <div className="text-3xl font-bold text-white">{(userScore.image1 + userScore.image2).toLocaleString()}</div>
               </div>
+
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Trophy className="text-amber-400" size={24} />
