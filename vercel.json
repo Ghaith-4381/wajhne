@@ -1,0 +1,41 @@
+
+{
+    "version": 2,
+    "builds": [
+      {
+        "src": "dist/**/*",
+        "use": "@vercel/static"
+      },
+      {
+        "src": "server.js",
+        "use": "@vercel/node"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/api/(.*)",
+        "dest": "/server.js"
+      },
+      {
+        "src": "/uploads/(.*)",
+        "dest": "/uploads/$1"
+      },
+      {
+        "src": "/sounds/(.*)",
+        "dest": "/public/sounds/$1"
+      },
+      {
+        "src": "/(.*)",
+        "dest": "/dist/index.html"
+      }
+    ],
+    "functions": {
+      "server.js": {
+        "maxDuration": 30
+      }
+    },
+    "env": {
+      "NODE_ENV": "production"
+    }
+  }
+  
