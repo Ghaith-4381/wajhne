@@ -1,17 +1,19 @@
-
 import axios from "axios";
 import { useState, useEffect } from "react";
 import ClickableImage from "../components/ClickableImage";
 import CountryStats from "../components/CountryStats";
 import AdBanner from "../components/AdBanner";
 import TopBannerAd from "../components/TopBannerAd";
-import UserScoreDisplay from "../components/UserScoreDisplay";
 import { fetchStats, registerClick, fetchImages, CountryStatsData } from "../services/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trophy, Globe, Users, Crown, Shield, Award, Flag, User } from "lucide-react";
+import { Trophy, Globe, Users, Crown, Shield, Award, Flag } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "../config/constants";
-import { useUserScore } from "../hooks/useUserScore";
+
+type ClickMutationData = {
+  imageId: number;
+  country: string;
+};
 
 // دالة للتأكد من سلامة البيانات
 const ensureSafeData = (data: any): CountryStatsData => {
@@ -52,20 +54,12 @@ const fallbackData: CountryStatsData = {
   }
 };
 
-interface ClickMutationData {
-  imageId: number;
-  country: string;
-}
-
 const Index = () => {
   const [userCountry, setUserCountry] = useState("Unknown");
   const [useLocalData, setUseLocalData] = useState(false);
   const [imagePaths, setImagePaths] = useState<{ image1: any; image2: any }>({ image1: null, image2: null });
   const [hasAd, setHasAd] = useState(false);
   const queryClient = useQueryClient();
-
-  // استخدام hook السكور الخاص بالمستخدم
-  const { userScore, incrementUserScore } = useUserScore();
 
   const { data: rawClickData, isLoading } = useQuery({
     queryKey: ['stats'],
@@ -156,11 +150,6 @@ const Index = () => {
 
   const handleImageClick = (imageNum: number, clickData?: { isTrusted: boolean; timestamp: number }) => {
     console.log("Image clicked:", imageNum);
-    
-    // زيادة سكور المستخدم فوراً
-    incrementUserScore(imageNum as 1 | 2);
-    
-    // إرسال النقرة للسكور العام
     clickMutation.mutate({ 
       imageId: imageNum, 
       country: userCountry,
@@ -200,11 +189,6 @@ const Index = () => {
 
   const winnerStatus = getWinnerStatus();
 
-
-
-
-
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
       <div className="container mx-auto px-4 pt-4">
@@ -242,6 +226,7 @@ const Index = () => {
      
       <main className={`container mx-auto px-4 py-12 transition-all duration-500 ${hasAd ? 'mb-36' : 'mb-8'}`}>
         {/* Presidential Stats Dashboard */}
+    
         <div className="mb-12 bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl shadow-2xl border border-amber-600/30 overflow-hidden">
           <div className="bg-gradient-to-r from-amber-900/50 to-amber-800/50 px-6 py-4 border-b border-amber-600/30">
             <h2 className="text-2xl font-bold text-amber-100 text-center flex items-center justify-center gap-3">
@@ -251,19 +236,7 @@ const Index = () => {
             </h2>
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
-              
-            <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <User className="text-emerald-400" size={24} />
-                  <span className="text-slate-300 font-medium">مشاركتك</span>
-                </div>
-                <div className="text-3xl font-bold text-emerald-400">
-                  {(userScore.image1 + userScore.image2).toLocaleString()}
-                </div>
-              </div>
-
-
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Globe className="text-blue-400" size={24} />
@@ -271,8 +244,6 @@ const Index = () => {
                 </div>
                 <div className="text-3xl font-bold text-white">{totalClicks.toLocaleString()}</div>
               </div>
-
-
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Flag className="text-green-400" size={24} />
@@ -298,6 +269,7 @@ const Index = () => {
             <div className={`bg-gradient-to-br from-slate-800 to-slate-700 rounded-2xl shadow-2xl border-2 overflow-hidden transition-all duration-500 ${
               winnerStatus === "left" ? "border-amber-400 shadow-amber-400/30" : "border-slate-600"
             }`}>
+              {/* Presidential Crown for Winner */}
               {winnerStatus === "left" && (
                 <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 z-10">
                   <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-black px-6 py-3 rounded-full font-bold shadow-2xl flex items-center gap-2">
@@ -308,11 +280,12 @@ const Index = () => {
                 </div>
               )}
               
+              {/* Header */}
               <div className="bg-gradient-to-r from-amber-900/40 to-amber-800/40 p-4 border-b border-amber-600/30">
                 <div className="text-center">
                   <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
                   <div className="text-4xl md:text-5xl font-bold text-white mb-2">
-                    {isLoading && !useLocalData ? "..." : (clickData.image1?.total || 0).toLocaleString()}
+                    {isLoading && !useLocalData ? "..." : (data.image1?.total || 0).toLocaleString()}
                   </div>
                   <div className="text-xl font-bold text-amber-300">
                     {image1Percentage.toFixed(1)}%
@@ -320,6 +293,7 @@ const Index = () => {
                 </div>
               </div>
 
+              {/* Presidential Portrait */}
               {imagePaths.image1?.default && (
                 <div className="p-6">
                   <div className="relative group">
@@ -328,7 +302,7 @@ const Index = () => {
                       defaultSrc={`${API_BASE_URL}${imagePaths.image1.default}`}
                       pressedSrc={`${API_BASE_URL}${imagePaths.image1.pressed}`}
                       alt="القائد الأول"
-                      onClick={() => handleOptimizedImageClick(1)}
+                      onClick={(clickData) => handleImageClick(1, clickData)}
                       className="w-full h-[500px] md:h-[600px] object-cover rounded-xl border-2 border-amber-600/50 shadow-2xl cursor-pointer transition-all duration-300 hover:border-amber-400 hover:shadow-amber-400/20"
                       soundSrc={imagePaths.image1?.sound ? `${API_BASE_URL}${imagePaths.image1.sound}` : undefined}
                       errorFallback={true}
@@ -343,6 +317,7 @@ const Index = () => {
                 </div>
               )}
 
+              {/* Presidential Progress Bar */}
               <div className="p-6 pt-0">
                 <div className="w-full bg-slate-600 rounded-full h-4 overflow-hidden border border-slate-500">
                   <div 
@@ -374,6 +349,7 @@ const Index = () => {
             <div className={`bg-gradient-to-br from-slate-800 to-slate-700 rounded-2xl shadow-2xl border-2 overflow-hidden transition-all duration-500 ${
               winnerStatus === "right" ? "border-amber-400 shadow-amber-400/30" : "border-slate-600"
             }`}>
+              {/* Presidential Crown for Winner */}
               {winnerStatus === "right" && (
                 <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 z-10">
                   <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-black px-6 py-3 rounded-full font-bold shadow-2xl flex items-center gap-2">
@@ -384,11 +360,12 @@ const Index = () => {
                 </div>
               )}
 
+              {/* Header */}
               <div className="bg-gradient-to-r from-amber-900/40 to-amber-800/40 p-4 border-b border-amber-600/30">
                 <div className="text-center">
                   <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
                   <div className="text-4xl md:text-5xl font-bold text-white mb-2">
-                    {isLoading && !useLocalData ? "..." : (clickData.image2?.total || 0).toLocaleString()}
+                    {isLoading && !useLocalData ? "..." : (data.image2?.total || 0).toLocaleString()}
                   </div>
                   <div className="text-xl font-bold text-amber-300">
                     {image2Percentage.toFixed(1)}%
@@ -396,6 +373,7 @@ const Index = () => {
                 </div>
               </div>
 
+              {/* Presidential Portrait */}
               {imagePaths.image2?.default && (
                 <div className="p-6">
                   <div className="relative group">
@@ -404,7 +382,7 @@ const Index = () => {
                       defaultSrc={`${API_BASE_URL}${imagePaths.image2.default}`}
                       pressedSrc={`${API_BASE_URL}${imagePaths.image2.pressed}`}
                       alt="القائد الثاني"
-                      onClick={() => handleOptimizedImageClick(2)}
+                      onClick={(clickData) => handleImageClick(2, clickData)}
                       className="w-full h-[500px] md:h-[600px] object-cover rounded-xl border-2 border-amber-600/50 shadow-2xl cursor-pointer transition-all duration-300 hover:border-amber-400 hover:shadow-amber-400/20"
                       soundSrc={imagePaths.image2?.sound ? `${API_BASE_URL}${imagePaths.image2.sound}` : undefined}
                       errorFallback={true}
@@ -419,6 +397,7 @@ const Index = () => {
                 </div>
               )}
 
+              {/* Presidential Progress Bar */}
               <div className="p-6 pt-0">
                 <div className="w-full bg-slate-600 rounded-full h-4 overflow-hidden border border-slate-500">
                   <div 
@@ -436,7 +415,7 @@ const Index = () => {
 
       {/* Country Stats */}
       <div className="container mx-auto px-4 pb-8">
-        <CountryStats data={clickData} userCountry={userCountry} />
+        <CountryStats data={data} userCountry={userCountry} />
       </div>
 
       {/* Presidential Footer */}
