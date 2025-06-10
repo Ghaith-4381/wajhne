@@ -1,4 +1,4 @@
-import axios from "axios";
+mport axios from "axios";
 import { useState, useEffect } from "react";
 import ClickableImage from "../components/ClickableImage";
 import CountryStats from "../components/CountryStats";
