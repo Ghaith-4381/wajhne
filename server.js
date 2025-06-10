@@ -1,85 +1,83 @@
-
-import express from 'express';
-import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
-
-// Import configuration and middleware
-import { CONFIG } from './server/config/settings.js';
-import { testConnection } from './server/config/database.js';
-import { createRateLimiter, restrictToAllowedIPs } from './server/middleware/auth.js';
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 
 // Import routes
-import statsRoutes from './server/routes/stats.js';
-import uploadsRoutes from './server/routes/uploads.js';
-import adminRoutes from './server/routes/admin.js';
-import banRoutes from './server/routes/banManagement.js';
-import { checkBanStatus, monitorClickRate } from './server/middleware/banCheck.js';
-import antiClickBotRoutes from './server/routes/antiClickBot.js';
-import { antiClickBotMiddleware, cleanupOldRecords } from './server/middleware/antiClickBot.js';
-
-dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const adminRoutes = require('./server/routes/admin.js');
+const statsRoutes = require('./server/routes/stats.js');
+const uploadsRoutes = require('./server/routes/uploads.js');
+const adsRoutes = require('./server/routes/ads.js');
+const antiClickBotRoutes = require('./server/routes/antiClickBot.js');
+const banManagementRoutes = require('./server/routes/banManagement.js');
 
 const app = express();
-const port = CONFIG.PORT;
 
-// Test database connection on startup
-testConnection().catch(console.error);
+// CORS configuration
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://waghne-ghaith-almohammads-projects.vercel.app', 'https://your-custom-domain.com'] 
+    : ['http://localhost:3000', 'http://localhost:5173'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+}));
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Add debugging middleware for anti-click-bot routes
-app.use('/api/admin-4Bxr7Xt89/anti-click-bot', (req, res, next) => {
-  console.log(`Anti-click-bot request: ${req.method} ${req.path}`);
-  next();
+// Serve static files
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/sounds', express.static(path.join(__dirname, 'public/sounds')));
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
-// Rate limiter for sensitive endpoints
-const limiter = createRateLimiter();
-app.use('/api/admin-4Bxr7Xt89/login', limiter);
-app.use('/api/admin-4Bxr7Xt89/register', limiter);
-app.use('/api/admin-4Bxr7Xt89/verify-otp', limiter);
-
-// Add anti-click-bot protection to click endpoint
-app.use('/api/click', checkBanStatus, antiClickBotMiddleware, monitorClickRate);
-
-// Static file serving - المسار المصحح للـ frontend
-app.use(express.static(path.join(__dirname, '../')));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// Routes
+// API Routes
+app.use('/api/admin-4Bxr7Xt89', adminRoutes);
 app.use('/api', statsRoutes);
 app.use('/api', uploadsRoutes);
+app.use('/api', adsRoutes);
+app.use('/api', antiClickBotRoutes);
+app.use('/api', banManagementRoutes);
 
-// Admin routes with IP restriction
-app.use('/api/admin-4Bxr7Xt89', restrictToAllowedIPs, adminRoutes);
-app.use('/api/admin-4Bxr7Xt89', restrictToAllowedIPs, banRoutes);
-app.use('/api/admin-4Bxr7Xt89/anti-click-bot', restrictToAllowedIPs, antiClickBotRoutes);
-
-// Test route to verify anti-click-bot is working
-app.get('/api/admin-4Bxr7Xt89/anti-click-bot/test', (req, res) => {
-  res.json({ success: true, message: 'Anti-click-bot routes are working!' });
-});
-
-// Serve React app for all other routes - المسار المصحح
+// Handle React Router (catch-all handler)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../index.html'));
+  const indexPath = path.join(__dirname, 'dist', 'index.html');
+  
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ 
+      error: 'Not Found', 
+      message: 'The requested resource was not found.' 
+    });
+  }
 });
 
-// Start cleanup task every hour
-setInterval(cleanupOldRecords, 60 * 60 * 1000);
-
-// Start the server
-app.listen(port, () => {
-  console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`📊 Stats API: /api/stats`);
-  console.log(`🔐 Admin Panel: /admin-4Bxr7Xt89-secure`);
-  console.log(`📁 File uploads: /api/upload-image & /api/upload-sound`);
-  console.log(`🛡️ Anti-Click-Bot: /api/admin-4Bxr7Xt89/anti-click-bot`);
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  res.status(500).json({ 
+    error: 'Internal Server Error',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+  });
 });
+
+const PORT = process.env.PORT || 3000;
+
+// For Vercel, we export the app
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+}
