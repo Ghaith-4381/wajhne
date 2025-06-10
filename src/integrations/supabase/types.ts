@@ -52,8 +52,8 @@ export type Database = {
           id: number
           last_login: string | null
           password_hash: string
-          password_hash_2: string
-          password_hash_3: string
+          password_hash_2: string | null
+          password_hash_3: string | null
           username: string
         }
         Insert: {
@@ -63,8 +63,8 @@ export type Database = {
           id?: number
           last_login?: string | null
           password_hash: string
-          password_hash_2?: string
-          password_hash_3?: string
+          password_hash_2?: string | null
+          password_hash_3?: string | null
           username: string
         }
         Update: {
@@ -74,8 +74,8 @@ export type Database = {
           id?: number
           last_login?: string | null
           password_hash?: string
-          password_hash_2?: string
-          password_hash_3?: string
+          password_hash_2?: string | null
+          password_hash_3?: string | null
           username?: string
         }
         Relationships: []

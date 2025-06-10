@@ -1,0 +1,15 @@
+
+# API routes
+/api/* /server.js 200
+/api/admin-4Bxr7Xt89/* /server.js 200
+
+# Static files
+/uploads/* /uploads/:splat 200
+/sounds/* /sounds/:splat 200
+
+# Admin routes
+/admin-4Bxr7Xt89-secure /index.html 200
+/admin-4Bxr7Xt89-secure/* /index.html 200
+
+# Catch-all for React Router
+/* /index.html 200

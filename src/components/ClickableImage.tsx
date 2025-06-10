@@ -23,6 +23,7 @@ const ClickableImage = ({
 }: ClickableImageProps) => {
   const [isPressed, setIsPressed] = useState(false);
   const [soundError, setSoundError] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastClickTime = useRef(0);
   const { validateClick } = useAntiClickBot();
@@ -30,12 +31,18 @@ const ClickableImage = ({
   useEffect(() => {
     if (soundSrc) {
       const audioElement = new Audio(soundSrc);
-      audioElement.preload = "auto"; // تحميل مسبق للصوت
+      audioElement.preload = "auto";
       audioElement.volume = 0.7;
+      
       audioElement.addEventListener("error", () => {
         console.warn(`Sound file not found: ${soundSrc}`);
         setSoundError(true);
       });
+      
+      audioElement.addEventListener("canplaythrough", () => {
+        setSoundError(false);
+      });
+      
       audioRef.current = audioElement;
     }
 
@@ -115,7 +122,20 @@ const ClickableImage = ({
   };
 
   const getImageUrl = () => {
-    return isPressed && pressedSrc ? pressedSrc : defaultSrc;
+    const src = isPressed && pressedSrc ? pressedSrc : defaultSrc;
+    return src;
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+    if (pressedSrc && isPressed && errorFallback) {
+      // إذا فشلت الصورة المضغوطة، استخدم الصورة الافتراضية
+      setIsPressed(false);
+    }
+  };
+
+  const handleImageLoad = () => {
+    setImageError(false);
   };
 
   return (
@@ -141,17 +161,23 @@ const ClickableImage = ({
         alt={alt}
         className="w-full h-full object-cover rounded-lg pointer-events-none"
         draggable={false}
-        onError={(e) => {
-          if ((e.target as HTMLImageElement).src === pressedSrc && errorFallback) {
-            (e.target as HTMLImageElement).src = defaultSrc;
-          }
-        }}
+        onError={handleImageError}
+        onLoad={handleImageLoad}
         style={{
           touchAction: "manipulation",
           WebkitUserSelect: "none",
           userSelect: "none"
         }}
       />
+      
+      {imageError && (
+        <div className="absolute inset-0 bg-gray-700 rounded-lg flex items-center justify-center">
+          <div className="text-white text-center">
+            <div className="text-4xl mb-2">🖼️</div>
+            <div>لم يتم العثور على الصورة</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

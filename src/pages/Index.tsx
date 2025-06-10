@@ -66,6 +66,22 @@ const Index = () => {
   // استخدام hook السكور الخاص بالمستخدم
   const { userScore, incrementUserScore } = useUserScore();
 
+  // إضافة query منفصل للصور مع refresh متكرر
+  const { data: imageData, refetch: refetchImages } = useQuery({
+    queryKey: ['images'],
+    queryFn: fetchImages,
+    refetchInterval: 3000, // تحديث كل 3 ثوانِ
+    staleTime: 0, // اعتبار البيانات قديمة فوراً
+    gcTime: 0, // عدم الاحتفاظ بالبيانات في الذاكرة
+  });
+
+  // تحديث imagePaths عند تغيير imageData
+  useEffect(() => {
+    if (imageData) {
+      setImagePaths(imageData);
+    }
+  }, [imageData]);
+
   const { data: rawClickData, isLoading } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
@@ -145,13 +161,17 @@ const Index = () => {
         setUserCountry("Unknown");
       });
   
-    // تحميل الصور من Supabase
+    // تحديث الإحصائيات
     queryClient.invalidateQueries({ queryKey: ['stats'] });
-  
-    fetchImages()
-      .then(res => setImagePaths(res))
-      .catch(err => console.error("Error loading images:", err));
   }, [queryClient]);
+
+  // دالة لإنشاء URL فريد للصور لتجنب مشاكل التخزين المؤقت
+  const getImageUrl = (path: string) => {
+    if (!path) return '';
+    const baseUrl = `${API_BASE_URL}${path}`;
+    const timestamp = Date.now();
+    return `${baseUrl}?t=${timestamp}`;
+  };
 
   const handleImageClick = (imageNum: number, clickData?: { isTrusted: boolean; timestamp: number }) => {
     console.log("Image clicked:", imageNum);
@@ -329,12 +349,12 @@ const Index = () => {
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-t from-amber-900/30 via-transparent to-transparent rounded-xl"></div>
                     <ClickableImage
-                      defaultSrc={`${API_BASE_URL}${imagePaths.image1.default}`}
-                      pressedSrc={`${API_BASE_URL}${imagePaths.image1.pressed}`}
+                      defaultSrc={getImageUrl(imagePaths.image1.default)}
+                      pressedSrc={imagePaths.image1.pressed ? getImageUrl(imagePaths.image1.pressed) : undefined}
                       alt="القائد الأول"
                       onClick={(clickData) => handleImageClick(1, clickData)}
                       className="w-full h-[500px] md:h-[600px] object-cover rounded-xl border-2 border-amber-600/50 shadow-2xl cursor-pointer transition-all duration-300 hover:border-amber-400 hover:shadow-amber-400/20"
-                      soundSrc={imagePaths.image1?.sound ? `${API_BASE_URL}${imagePaths.image1.sound}` : undefined}
+                      soundSrc={imagePaths.image1?.sound ? getImageUrl(imagePaths.image1.sound) : undefined}
                       errorFallback={true}
                     />
                     <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -419,12 +439,12 @@ const Index = () => {
                   <div className="relative group">
                     <div className="absolute inset-0 bg-gradient-to-t from-amber-900/30 via-transparent to-transparent rounded-xl"></div>
                     <ClickableImage
-                      defaultSrc={`${API_BASE_URL}${imagePaths.image2.default}`}
-                      pressedSrc={`${API_BASE_URL}${imagePaths.image2.pressed}`}
+                      defaultSrc={getImageUrl(imagePaths.image2.default)}
+                      pressedSrc={imagePaths.image2.pressed ? getImageUrl(imagePaths.image2.pressed) : undefined}
                       alt="القائد الثاني"
                       onClick={(clickData) => handleImageClick(2, clickData)}
                       className="w-full h-[500px] md:h-[600px] object-cover rounded-xl border-2 border-amber-600/50 shadow-2xl cursor-pointer transition-all duration-300 hover:border-amber-400 hover:shadow-amber-400/20"
-                      soundSrc={imagePaths.image2?.sound ? `${API_BASE_URL}${imagePaths.image2.sound}` : undefined}
+                      soundSrc={imagePaths.image2?.sound ? getImageUrl(imagePaths.image2.sound) : undefined}
                       errorFallback={true}
                     />
                     <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">

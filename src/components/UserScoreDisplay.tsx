@@ -1,3 +1,4 @@
+
 import { User, Trophy } from "lucide-react";
 
 interface UserScoreDisplayProps {
