@@ -1,4 +1,4 @@
-mport axios from "axios";
+import axios from "axios";
 import { useState, useEffect } from "react";
 import ClickableImage from "../components/ClickableImage";
 import CountryStats from "../components/CountryStats";
@@ -486,3 +486,5 @@ const Index = () => {
 };
 
 export default Index;
+
+</edits_to_apply>
