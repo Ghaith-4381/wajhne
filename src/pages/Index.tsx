@@ -313,11 +313,11 @@ const Index = () => {
               {/* Header */}
               <div className="bg-gradient-to-r from-amber-900/40 to-amber-800/40 p-4 border-b border-amber-600/30">
                 <div className="text-center">
-                <UserScoreDisplay 
+               
                     userScore={userScore.image1}
                     imageNumber={1}
                     pendingClicks={0}
-                  />
+                  
                   <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
                   <div className="text-4xl md:text-5xl font-bold text-white mb-2">
                     {isLoading && !useLocalData ? "..." : (data.image1?.total || 0).toLocaleString()}
