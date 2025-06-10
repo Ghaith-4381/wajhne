@@ -1,19 +1,17 @@
+
 import axios from "axios";
 import { useState, useEffect } from "react";
 import ClickableImage from "../components/ClickableImage";
 import CountryStats from "../components/CountryStats";
 import AdBanner from "../components/AdBanner";
 import TopBannerAd from "../components/TopBannerAd";
+import UserScoreDisplay from "../components/UserScoreDisplay";
 import { fetchStats, registerClick, fetchImages, CountryStatsData } from "../services/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trophy, Globe, Users, Crown, Shield, Award, Flag } from "lucide-react";
+import { Trophy, Globe, Users, Crown, Shield, Award, Flag, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "../config/constants";
-
-type ClickMutationData = {
-  imageId: number;
-  country: string;
-};
+import { useUserScore } from "../hooks/useUserScore";
 
 // دالة للتأكد من سلامة البيانات
 const ensureSafeData = (data: any): CountryStatsData => {
@@ -54,12 +52,20 @@ const fallbackData: CountryStatsData = {
   }
 };
 
+interface ClickMutationData {
+  imageId: number;
+  country: string;
+}
+
 const Index = () => {
   const [userCountry, setUserCountry] = useState("Unknown");
   const [useLocalData, setUseLocalData] = useState(false);
   const [imagePaths, setImagePaths] = useState<{ image1: any; image2: any }>({ image1: null, image2: null });
   const [hasAd, setHasAd] = useState(false);
   const queryClient = useQueryClient();
+
+  // استخدام hook السكور الخاص بالمستخدم
+  const { userScore, incrementUserScore } = useUserScore();
 
   const { data: rawClickData, isLoading } = useQuery({
     queryKey: ['stats'],
@@ -150,6 +156,11 @@ const Index = () => {
 
   const handleImageClick = (imageNum: number, clickData?: { isTrusted: boolean; timestamp: number }) => {
     console.log("Image clicked:", imageNum);
+    
+    // زيادة سكور المستخدم فوراً
+    incrementUserScore(imageNum as 1 | 2);
+    
+    // إرسال النقرة للسكور العام
     clickMutation.mutate({ 
       imageId: imageNum, 
       country: userCountry,
@@ -235,6 +246,28 @@ const Index = () => {
               <Crown className="text-amber-400" size={28} />
             </h2>
           </div>
+
+
+          <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <User className="text-emerald-400" size={24} />
+                  <span className="text-slate-300 font-medium">مشاركتك</span>
+                </div>
+                <div className="text-3xl font-bold text-emerald-400">
+                  {(userScore.image1 + userScore.image2).toLocaleString()}
+                </div>
+              </div>
+
+              <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Globe className="text-blue-400" size={24} />
+                  <span className="text-slate-300 font-medium">إجمالي الأصوات</span>
+                </div>
+                <div className="text-3xl font-bold text-white">{totalClicks.toLocaleString()}</div>
+              </div>
+
+
+              
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
