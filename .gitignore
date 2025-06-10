@@ -40,3 +40,5 @@ README.md
 # Upload folders (optional, if dynamic content)
 uploads/
 lovable-uploads/
+
+.vercel

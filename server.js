@@ -1,16 +1,15 @@
-
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 
 // Import routes
-const adminRoutes = require('./server/routes/admin.js');
-const statsRoutes = require('./server/routes/stats.js');
-const uploadsRoutes = require('./server/routes/uploads.js');
-const adsRoutes = require('./server/routes/ads.js');
-const antiClickBotRoutes = require('./server/routes/antiClickBot.js');
-const banManagementRoutes = require('./server/routes/banManagement.js');
+import adminRoutes from './server/routes/admin.js';
+import statsRoutes from './server/routes/stats.js';
+import uploadsRoutes from './server/routes/uploads.js';
+import adsRoutes from './server/routes/ads.js';
+import antiClickBotRoutes from './server/routes/antiClickBot.js';
+import banManagementRoutes from './server/routes/banManagement.js';
 
 const app = express();
 

@@ -1,4 +1,3 @@
-
 {
   "version": 2,
   "builds": [
@@ -17,53 +16,37 @@
       }
     }
   ],
-  "routes": [
-    {
-      "src": "/api/health",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/api/admin-4Bxr7Xt89/(.*)",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/uploads/(.*)",
-      "dest": "/public/uploads/$1"
-    },
-    {
-      "src": "/sounds/(.*)",
-      "dest": "/public/sounds/$1"
-    },
-    {
-      "src": "/admin-4Bxr7Xt89-secure",
-      "dest": "/dist/index.html"
-    },
-    {
-      "src": "/admin-4Bxr7Xt89-secure/(.*)",
-      "dest": "/dist/index.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/dist/index.html"
-    }
-  ],
-  "functions": {
-    "server.js": {
-      "maxDuration": 30,
-      "memory": 1024
-    }
-  },
-  "env": {
-    "NODE_ENV": "production"
-  },
   "rewrites": [
+    {
+      "source": "/api/health",
+      "destination": "/server.js"
+    },
+    {
+      "source": "/api/admin-4Bxr7Xt89/:path*",
+      "destination": "/server.js"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/server.js"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "/public/uploads/:path*"
+    },
+    {
+      "source": "/sounds/:path*",
+      "destination": "/public/sounds/:path*"
+    },
     {
       "source": "/admin-4Bxr7Xt89-secure/:path*",
       "destination": "/dist/index.html"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/dist/index.html"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
