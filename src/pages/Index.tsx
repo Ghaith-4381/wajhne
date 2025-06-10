@@ -1,15 +1,17 @@
+
 import axios from "axios";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import ClickableImage from "../components/ClickableImage";
 import CountryStats from "../components/CountryStats";
 import AdBanner from "../components/AdBanner";
 import TopBannerAd from "../components/TopBannerAd";
+import UserScoreDisplay from "../components/UserScoreDisplay";
 import { fetchStats, registerClick, fetchImages, CountryStatsData } from "../services/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trophy, Globe, Users, Crown, Shield, Award, Flag } from "lucide-react";
+import { Trophy, Globe, Users, Crown, Shield, Award, Flag, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { API_BASE_URL } from "../config/constants";
-import { useClickStats } from "../hooks/useClickStats";
+import { useUserScore } from "../hooks/useUserScore";
 
 // دالة للتأكد من سلامة البيانات
 const ensureSafeData = (data: any): CountryStatsData => {
@@ -50,23 +52,83 @@ const fallbackData: CountryStatsData = {
   }
 };
 
+interface ClickMutationData {
+  imageId: number;
+  country: string;
+}
+
 const Index = () => {
   const [userCountry, setUserCountry] = useState("Unknown");
+  const [useLocalData, setUseLocalData] = useState(false);
   const [imagePaths, setImagePaths] = useState<{ image1: any; image2: any }>({ image1: null, image2: null });
   const [hasAd, setHasAd] = useState(false);
-  
-  // استخدام الهوك المحسن للنقر السريع
-  const {
-    clickData,
-    isLoading,
-    useLocalData,
-    handleImageClick,
-    image1Percentage,
-    image2Percentage,
-    totalClicks,
-    topCountry,
-    pendingClicksCount
-  } = useClickStats();
+  const queryClient = useQueryClient();
+
+  // استخدام hook السكور الخاص بالمستخدم
+  const { userScore, incrementUserScore } = useUserScore();
+
+  const { data: rawClickData, isLoading } = useQuery({
+    queryKey: ['stats'],
+    queryFn: fetchStats,
+    refetchInterval: 5000,
+    retry: 1,
+    initialData: initialClickData,
+    meta: {
+      onError: (error: any) => {
+        console.log("Using fallback data due to API error:", error);
+        setUseLocalData(true);
+      }
+    }
+  });
+
+  // تطبيق الحماية على البيانات المستلمة
+  const safeClickData = ensureSafeData(rawClickData);
+  const clickData = useLocalData ? fallbackData : safeClickData;
+
+  const clickMutation = useMutation<void, unknown, ClickMutationData & { isTrusted?: boolean; timestamp?: number }>({
+    mutationFn: ({ imageId, country, isTrusted = true, timestamp = Date.now() }) => {
+      const result = registerClick(imageId, country, { isTrusted, timestamp });
+      return result instanceof Promise ? result.then(() => {}) : Promise.resolve();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+    },
+    onError: (error: any, variables) => {
+      // التعامل مع أخطاء الحماية ضد النقرات التلقائية
+      if (error?.response?.status === 429) {
+        const errorData = error.response.data;
+        if (errorData.type === 'rate_limit_exceeded') {
+          toast({
+            title: "تم تجاوز الحد المسموح",
+            description: errorData.message,
+            variant: "destructive",
+          });
+        } else if (errorData.type === 'untrusted_click') {
+          toast({
+            title: "نقرة غير صالحة",
+            description: "يرجى النقر بشكل طبيعي",
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      setUseLocalData(true);
+      if (useLocalData) {
+        let updatedData = { ...fallbackData };
+        const imageKey = variables.imageId === 1 ? 'image1' : 'image2';
+        updatedData[imageKey] = {
+          ...updatedData[imageKey],
+          total: updatedData[imageKey].total + 1,
+          countries: {
+            ...updatedData[imageKey].countries,
+            [variables.country || "Unknown"]: (updatedData[imageKey].countries[variables.country || "Unknown"] || 0) + 1
+          }
+        };
+        queryClient.setQueryData(['stats'], updatedData);
+      }
+    }
+  });
 
   useEffect(() => {
     // حدد الدولة تلقائياً من خلال IP
@@ -85,27 +147,44 @@ const Index = () => {
       });
   
     // تحميل الصور من Supabase
+    queryClient.invalidateQueries({ queryKey: ['stats'] });
+  
     fetchImages()
       .then(res => setImagePaths(res))
       .catch(err => console.error("Error loading images:", err));
-  }, []);
+  }, [queryClient]);
 
-  // دالة النقر المحسنة - فورية بدون تأخير
-  const handleOptimizedImageClick = useCallback((imageNum: number) => {
-    console.log("🚀 نقرة سريعة على الصورة:", imageNum);
-    handleImageClick(imageNum, userCountry);
-  }, [handleImageClick, userCountry]);
+  const handleImageClick = (imageNum: number, clickData?: { isTrusted: boolean; timestamp: number }) => {
+    console.log("Image clicked:", imageNum);
+    
+    // زيادة سكور المستخدم فوراً
+    incrementUserScore(imageNum as 1 | 2);
+    
+    // إرسال النقرة للسكور العام
+    clickMutation.mutate({ 
+      imageId: imageNum, 
+      country: userCountry,
+      isTrusted: clickData?.isTrusted,
+      timestamp: clickData?.timestamp
+    });
+  };
 
+  // حسابات آمنة للإحصائيات
+  const data = clickData;
+  const totalClicks = (data.image1?.total || 0) + (data.image2?.total || 0);
+  const image1Percentage = totalClicks > 0 ? ((data.image1?.total || 0) / totalClicks) * 100 : 50;
+  const image2Percentage = totalClicks > 0 ? ((data.image2?.total || 0) / totalClicks) * 100 : 50;
+  
   // حساب الدولة الرائدة بطريقة آمنة
   const leadingCountry = (() => {
     const allEntries = [
-      ...Object.entries(clickData.image1?.countries || {}),
-      ...Object.entries(clickData.image2?.countries || {})
+      ...Object.entries(data.image1?.countries || {}),
+      ...Object.entries(data.image2?.countries || {})
     ];
     
     const countryTotals = allEntries.reduce((acc, [country, count]) => {
-      const image1Count = clickData.image1?.countries?.[country] || 0;
-      const image2Count = clickData.image2?.countries?.[country] || 0;
+      const image1Count = data.image1?.countries?.[country] || 0;
+      const image2Count = data.image2?.countries?.[country] || 0;
       const total = image1Count + image2Count;
       return total > acc.total ? { country, total } : acc;
     }, { country: "", total: 0 });
@@ -120,6 +199,11 @@ const Index = () => {
   };
 
   const winnerStatus = getWinnerStatus();
+
+
+
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
@@ -153,11 +237,6 @@ const Index = () => {
               <span className="font-medium">وضع العرض التوضيحي</span>
             </div>
           )}
-          {pendingClicksCount > 0 && (
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-green-900/30 border border-green-400/50 rounded-lg text-green-200">
-              <span className="text-sm">⏳ {pendingClicksCount} نقرة في الانتظار</span>
-            </div>
-          )}
         </div>
       </header>
      
@@ -173,6 +252,27 @@ const Index = () => {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
+              
+            <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <User className="text-emerald-400" size={24} />
+                  <span className="text-slate-300 font-medium">مشاركتك</span>
+                </div>
+                <div className="text-3xl font-bold text-emerald-400">
+                  {(userScore.image1 + userScore.image2).toLocaleString()}
+                </div>
+              </div>
+
+
+              <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Globe className="text-blue-400" size={24} />
+                  <span className="text-slate-300 font-medium">إجمالي الأصوات</span>
+                </div>
+                <div className="text-3xl font-bold text-white">{totalClicks.toLocaleString()}</div>
+              </div>
+
+
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Flag className="text-green-400" size={24} />
