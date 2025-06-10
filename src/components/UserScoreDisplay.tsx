@@ -1,4 +1,3 @@
-
 import { User, Trophy } from "lucide-react";
 
 interface UserScoreDisplayProps {
@@ -15,16 +14,14 @@ const UserScoreDisplay = ({
   className = "" 
 }: UserScoreDisplayProps) => {
   return (
-    <div className={`bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-lg p-3 shadow-lg border border-emerald-500/30 ${className}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <User className="text-emerald-200" size={20} />
-          <span className="text-emerald-100 font-medium text-sm">مشاركتك</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Trophy className="text-yellow-400" size={18} />
-          <span className="text-white font-bold text-lg">{userScore.toLocaleString()}</span>
-        </div>
+    <div className={`text-center ${className}`}>
+      <div className="flex items-center justify-center gap-2 mb-2">
+        <User className="text-amber-400" size={16} />
+        <span className="text-amber-200 text-sm font-medium">مشاركتك</span>
+        <Trophy className="text-amber-400" size={16} />
+      </div>
+      <div className="text-2xl font-bold text-white">
+        {userScore.toLocaleString()}
       </div>
     </div>
   );

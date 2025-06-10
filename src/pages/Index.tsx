@@ -1,4 +1,3 @@
-
 import axios from "axios";
 import { useState, useEffect } from "react";
 import ClickableImage from "../components/ClickableImage";
@@ -252,9 +251,10 @@ const Index = () => {
 
 
           <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-              <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
+
+            <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <User className="text-emerald-400" size={24} />
                   <span className="text-slate-300 font-medium">مشاركتك</span>
@@ -263,10 +263,15 @@ const Index = () => {
                   {(userScore.image1 + userScore.image2).toLocaleString()}
                 </div>
               </div>
+              
+              <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <User className="text-blue-400" size={24} />
+                  <span className="text-slate-300 font-medium"> مشاركتك</span>
+                </div>
+                <div className="text-3xl font-bold text-white">{(userScore.image1 + userScore.image2).toLocaleString()}</div>
               </div>
 
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Globe className="text-blue-400" size={24} />
@@ -274,6 +279,8 @@ const Index = () => {
                 </div>
                 <div className="text-3xl font-bold text-white">{totalClicks.toLocaleString()}</div>
               </div>
+
+
               <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Flag className="text-green-400" size={24} />
@@ -312,18 +319,23 @@ const Index = () => {
               
               {/* Header */}
               <div className="bg-gradient-to-r from-amber-900/40 to-amber-800/40 p-4 border-b border-amber-600/30">
-                <div className="text-center">
-                <UserScoreDisplay 
+                <div className="grid grid-cols-2 gap-4">
+                  {/* User Score on the left */}
+                  <UserScoreDisplay 
                     userScore={userScore.image1}
                     imageNumber={1}
                     pendingClicks={0}
                   />
-                  <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
-                  <div className="text-4xl md:text-5xl font-bold text-white mb-2">
-                    {isLoading && !useLocalData ? "..." : (data.image1?.total || 0).toLocaleString()}
-                  </div>
-                  <div className="text-xl font-bold text-amber-300">
-                    {image1Percentage.toFixed(1)}%
+                  
+                  {/* Global Score on the right */}
+                  <div className="text-center">
+                    <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
+                    <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                      {isLoading && !useLocalData ? "..." : (data.image1?.total || 0).toLocaleString()}
+                    </div>
+                    <div className="text-xl font-bold text-amber-300">
+                      {image1Percentage.toFixed(1)}%
+                    </div>
                   </div>
                 </div>
               </div>
@@ -397,18 +409,23 @@ const Index = () => {
 
               {/* Header */}
               <div className="bg-gradient-to-r from-amber-900/40 to-amber-800/40 p-4 border-b border-amber-600/30">
-                <div className="text-center">
-                <UserScoreDisplay 
+                <div className="grid grid-cols-2 gap-4">
+                  {/* User Score on the left */}
+                  <UserScoreDisplay 
                     userScore={userScore.image2}
                     imageNumber={2}
                     pendingClicks={0}
                   />
-                  <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
-                  <div className="text-4xl md:text-5xl font-bold text-white mb-2">
-                    {isLoading && !useLocalData ? "..." : (data.image2?.total || 0).toLocaleString()}
-                  </div>
-                  <div className="text-xl font-bold text-amber-300">
-                    {image2Percentage.toFixed(1)}%
+                  
+                  {/* Global Score on the right */}
+                  <div className="text-center">
+                    <div className="text-amber-200 text-sm mb-1 font-medium">إجمالي أصوات القائد</div>
+                    <div className="text-4xl md:text-5xl font-bold text-white mb-2">
+                      {isLoading && !useLocalData ? "..." : (data.image2?.total || 0).toLocaleString()}
+                    </div>
+                    <div className="text-xl font-bold text-amber-300">
+                      {image2Percentage.toFixed(1)}%
+                    </div>
                   </div>
                 </div>
               </div>
