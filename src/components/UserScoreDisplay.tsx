@@ -20,7 +20,7 @@ const UserScoreDisplay = ({
         <span className="text-amber-200 text-sm font-medium">مشاركتك</span>
         <Trophy className="text-amber-400" size={16} />
       </div>
-      <div className="text-2xl font-bold text-white">
+      <div className="text-4xl md:text-5xl font-bold text-white mb-2">
         {userScore.toLocaleString()}
       </div>
     </div>
